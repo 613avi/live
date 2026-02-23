@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="he">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>מערכת קמפיין</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { width: 100%; height: 100%; overflow: hidden; background: #000; }
+
+    .frame {
+      position: fixed;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      border: none;
+      transition: opacity 0.4s ease;
+    }
+
+    .frame.hidden {
+      opacity: 0;
+      pointer-events: none;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Double buffer: שני iframes, תמיד אחד נסתר -->
+  <iframe id="frameA" class="frame" src="content.html"></iframe>
+  <iframe id="frameB" class="frame hidden" src="about:blank"></iframe>
+
+  <script>
+    // ---- Silent Double-Buffer Refresh ----
+    // עובד על IE9+, Chrome, Firefox, Safari, דפדפנים ניידים ישנים
+
+    var CHECK_INTERVAL = 60 * 1000; // בדיקה כל דקה
+    var lastVersion = null;
+    var activeFrame = 'A';
+
+    function getFrame(id) {
+      return document.getElementById('frame' + id);
+    }
+
+    function checkVersion() {
+      var xhr = new XMLHttpRequest();
+      // מניעת cache עם timestamp
+      xhr.open('GET', 'version.txt?t=' + Date.now(), true);
+      xhr.onreadystatechange = function() {
+        if (xhr.readyState !== 4) return;
+        if (xhr.status !== 200) return;
+
+        var v = xhr.responseText.trim();
+        if (lastVersion === null) {
+          lastVersion = v; // גרסה ראשונה - לא מרעננים
+          return;
+        }
+        if (v !== lastVersion) {
+          lastVersion = v;
+          loadNewContent();
+        }
+      };
+      xhr.send();
+    }
+
+    function loadNewContent() {
+      var nextId = (activeFrame === 'A') ? 'B' : 'A';
+      var nextFrame = getFrame(nextId);
+      var currentFrame = getFrame(activeFrame);
+
+      // טען בסתר
+      nextFrame.src = 'content.html?t=' + Date.now();
+
+      nextFrame.onload = function() {
+        // הצג את החדש
+        nextFrame.className = 'frame';
+        // הסתר את הישן בחלקות
+        currentFrame.className = 'frame hidden';
+
+        // לאחר המעבר, נקה את הישן
+        setTimeout(function() {
+          currentFrame.src = 'about:blank';
+        }, 500);
+
+        activeFrame = nextId;
+      };
+    }
+
+    // התחל בדיקות לאחר טעינה ראשונה
+    getFrame('A').onload = function() {
+      lastVersion = null; // אפס כדי לקלוט גרסה ראשונה
+      checkVersion();
+      setInterval(checkVersion, CHECK_INTERVAL);
+    };
+  </script>
+
+</body>
+</html>
