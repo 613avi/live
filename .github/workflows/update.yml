@@ -1,0 +1,38 @@
+name: Update Campaign Mirror
+
+on:
+  schedule:
+    - cron: '*/5 * * * *'   # כל 5 דקות
+  workflow_dispatch:          # אפשרות להרצה ידנית
+
+jobs:
+  scrape:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        run: npm install --no-package-lock
+
+      - name: Install Chromium
+        run: npx puppeteer browsers install chrome
+
+      - name: Scrape page
+        run: node scrape.js
+
+      - name: Commit and push if changed
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add content.html version.txt
+          git diff --cached --quiet || git commit -m "update: $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
+          git push
