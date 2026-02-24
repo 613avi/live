@@ -1,73 +1,47 @@
-# 📊 Campaign Mirror
+# Campaign Stats Mirror
 
-שיקוף אוטומטי של מצגת הקמפיין — מתעדכן כל 5 דקות, ללא רפרוף.
+מראה של סטטיסטיקות קמפיין ב-GitHub Pages עם עדכון אוטומטי כל 5 דקות.
 
----
+## התקנה
 
-## 🚀 הגדרה — 4 שלבים בלבד
+1. **צור ריפו חדש** ב-GitHub (יכול להיות public או private עם GitHub Pro)
 
-### שלב 1 — צור ריפו חדש בגיטהאב
-- היכנס ל-GitHub ולחץ **New repository**
-- תן לו שם (לדוגמה `campaign-mirror`)
-- השאר **Public**
-- **אל תסמן** "Add README" (הריפו חייב להיות ריק)
+2. **העלה את כל הקבצים** לריפו
 
-### שלב 2 — העלה את הקבצים
-גרור את כל תכולת התיקייה הזו לריפו החדש, או השתמש ב-Git:
+3. **הפעל GitHub Pages:**
+   - Settings → Pages
+   - Source: Deploy from a branch
+   - Branch: `main` / `(root)`
+   - Save
 
-```bash
-cd campaign-mirror
-git init
-git remote add origin https://github.com/YOUR_USERNAME/campaign-mirror.git
-git add .
-git commit -m "initial setup"
-git push -u origin main
-```
+4. **תן הרשאות כתיבה ל-Actions:**
+   - Settings → Actions → General
+   - Workflow permissions: **Read and write permissions**
+   - Save
 
-### שלב 3 — הפעל GitHub Pages
-- לך ל **Settings → Pages**
-- תחת **Source** בחר: **Deploy from a branch**
-- Branch: `main` / folder: `/ (root)`
-- לחץ **Save**
+5. **הרץ את ה-Action ידנית בפעם הראשונה:**
+   - Actions → Update Campaign Mirror → Run workflow
 
-### שלב 4 — אפשר ל-Actions לכתוב לריפו
-- לך ל **Settings → Actions → General**
-- גלול ל **Workflow permissions**
-- בחר **Read and write permissions**
-- לחץ **Save**
+## איך זה עובד
 
----
+- **GitHub Action** רץ כל 5 דקות ומוריד את הדף המקורי עם Puppeteer (Chrome headless)
+- **כל ה-CSS** נאסף ומוטמע בתוך ה-HTML כדי לשמור על העיצוב
+- **הדפדפן** בודק עדכונים כל דקה ומחליף את התוכן בצורה חלקה (double-buffer)
 
-## ✅ זהו!
+## קבצים
 
-לאחר כ-5-10 דקות האתר שלך יהיה חי בכתובת:
-`https://YOUR_USERNAME.github.io/campaign-mirror`
+- `scrape.js` - סקריפט שמוריד את הדף ושומר אותו
+- `index.html` - הדף הראשי שמציג את התוכן עם רענון חלק
+- `content.html` - התוכן שנשמר (מתעדכן אוטומטית)
+- `.github/workflows/update.yml` - הגדרות GitHub Action
 
----
+## פתרון בעיות
 
-## 🔄 איך זה עובד
+### התוכן לא מתעדכן
+בדוק ב-Actions → הריצה האחרונה → ראה אם יש שגיאה
 
-| רכיב | תפקיד |
-|------|--------|
-| `scrape.js` | Puppeteer טוען את האתר המקורי עם Chrome headless ושומר HTML מלא |
-| `.github/workflows/update.yml` | מריץ את ה-scraper כל 5 דקות אוטומטית |
-| `index.html` | מציג את התוכן ובודק עדכונים כל דקה ברקע |
-| `content.html` | ה-HTML המרונדר שמתעדכן |
-| `version.txt` | timestamp — משמש לזיהוי שינויים |
+### העיצוב שבור
+ייתכן שהאתר המקורי משתמש ב-fonts או נכסים שלא ניתן להוריד. פתח issue ואעזור לתקן.
 
-### ללא רפרוף — Double Buffer Technique
-הדפדפן טוען את ה-content חדש בסתר ב-iframe נסתר. רק כשהטעינה הושלמה לחלוטין — מתבצע החלפה חלקה (fade). המשתמש לא רואה שום תקתוק.
-
----
-
-## ⚙️ התאמות אפשריות
-
-שנה ב-`index.html`:
-```js
-var CHECK_INTERVAL = 60 * 1000; // בדיקת עדכון כל דקה (בms)
-```
-
-שנה ב-`.github/workflows/update.yml`:
-```yaml
-- cron: '*/5 * * * *'  # שנה 5 ל-10 לרענון כל 10 דקות
-```
+### ה-Action לא רץ
+וודא שנתת הרשאות כתיבה (ראה שלב 4 בהתקנה)

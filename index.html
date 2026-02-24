@@ -1,96 +1,152 @@
 <!DOCTYPE html>
-<html lang="he">
+<html dir="rtl" lang="he">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>מערכת קמפיין</title>
-  <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-    html, body { width: 100%; height: 100%; overflow: hidden; background: #000; }
-
-    .frame {
-      position: fixed;
-      top: 0; left: 0;
-      width: 100%; height: 100%;
-      border: none;
-      transition: opacity 0.4s ease;
-    }
-
-    .frame.hidden {
-      opacity: 0;
-      pointer-events: none;
-    }
-  </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>מגבית פורים - סטטיסטיקות חי</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        html, body {
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+        }
+        
+        .container {
+            position: relative;
+            width: 100%;
+            height: 100%;
+        }
+        
+        iframe {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            border: none;
+        }
+        
+        #frame-active {
+            z-index: 2;
+        }
+        
+        #frame-buffer {
+            z-index: 1;
+            visibility: hidden;
+        }
+        
+        .loading-indicator {
+            position: fixed;
+            top: 10px;
+            left: 10px;
+            background: rgba(0, 0, 0, 0.7);
+            color: #4ade80;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-family: Arial, sans-serif;
+            font-size: 12px;
+            z-index: 9999;
+            display: none;
+        }
+        
+        .loading-indicator.active {
+            display: block;
+        }
+    </style>
 </head>
 <body>
+    <div class="container">
+        <iframe id="frame-active" src="content.html"></iframe>
+        <iframe id="frame-buffer" src="about:blank"></iframe>
+    </div>
+    <div id="loading" class="loading-indicator">🔄 מעדכן...</div>
 
-  <!-- Double buffer: שני iframes, תמיד אחד נסתר -->
-  <iframe id="frameA" class="frame" src="content.html"></iframe>
-  <iframe id="frameB" class="frame hidden" src="about:blank"></iframe>
+    <script>
+        const REFRESH_INTERVAL = 60000; // Check every 60 seconds
+        let lastModified = null;
+        let isSwapping = false;
 
-  <script>
-    // ---- Silent Double-Buffer Refresh ----
-    // עובד על IE9+, Chrome, Firefox, Safari, דפדפנים ניידים ישנים
+        const frameActive = document.getElementById('frame-active');
+        const frameBuffer = document.getElementById('frame-buffer');
+        const loadingIndicator = document.getElementById('loading');
 
-    var CHECK_INTERVAL = 60 * 1000; // בדיקה כל דקה
-    var lastVersion = null;
-    var activeFrame = 'A';
-
-    function getFrame(id) {
-      return document.getElementById('frame' + id);
-    }
-
-    function checkVersion() {
-      var xhr = new XMLHttpRequest();
-      // מניעת cache עם timestamp
-      xhr.open('GET', 'version.txt?t=' + Date.now(), true);
-      xhr.onreadystatechange = function() {
-        if (xhr.readyState !== 4) return;
-        if (xhr.status !== 200) return;
-
-        var v = xhr.responseText.trim();
-        if (lastVersion === null) {
-          lastVersion = v; // גרסה ראשונה - לא מרעננים
-          return;
+        async function checkForUpdates() {
+            if (isSwapping) return;
+            
+            try {
+                // Fetch content.html to check if it changed
+                const response = await fetch('content.html', { 
+                    cache: 'no-store',
+                    headers: { 'Cache-Control': 'no-cache' }
+                });
+                
+                const currentModified = response.headers.get('last-modified') || 
+                                        response.headers.get('etag') || 
+                                        Date.now().toString();
+                
+                if (lastModified && lastModified !== currentModified) {
+                    // Content changed, reload smoothly
+                    await smoothReload();
+                }
+                
+                lastModified = currentModified;
+            } catch (e) {
+                console.log('Update check failed:', e);
+            }
         }
-        if (v !== lastVersion) {
-          lastVersion = v;
-          loadNewContent();
+
+        async function smoothReload() {
+            isSwapping = true;
+            loadingIndicator.classList.add('active');
+            
+            return new Promise((resolve) => {
+                // Load new content in buffer frame
+                const timestamp = Date.now();
+                frameBuffer.src = `content.html?t=${timestamp}`;
+                
+                frameBuffer.onload = () => {
+                    // Give it a moment to render
+                    setTimeout(() => {
+                        // Swap frames
+                        frameBuffer.style.visibility = 'visible';
+                        frameBuffer.style.zIndex = '2';
+                        frameActive.style.zIndex = '1';
+                        
+                        // After transition, update active frame
+                        setTimeout(() => {
+                            frameActive.src = `content.html?t=${timestamp}`;
+                            frameActive.onload = () => {
+                                frameActive.style.zIndex = '2';
+                                frameBuffer.style.zIndex = '1';
+                                frameBuffer.style.visibility = 'hidden';
+                                loadingIndicator.classList.remove('active');
+                                isSwapping = false;
+                                resolve();
+                            };
+                        }, 100);
+                    }, 500);
+                };
+                
+                // Timeout fallback
+                setTimeout(() => {
+                    loadingIndicator.classList.remove('active');
+                    isSwapping = false;
+                    resolve();
+                }, 10000);
+            });
         }
-      };
-      xhr.send();
-    }
 
-    function loadNewContent() {
-      var nextId = (activeFrame === 'A') ? 'B' : 'A';
-      var nextFrame = getFrame(nextId);
-      var currentFrame = getFrame(activeFrame);
-
-      // טען בסתר
-      nextFrame.src = 'content.html?t=' + Date.now();
-
-      nextFrame.onload = function() {
-        // הצג את החדש
-        nextFrame.className = 'frame';
-        // הסתר את הישן בחלקות
-        currentFrame.className = 'frame hidden';
-
-        // לאחר המעבר, נקה את הישן
-        setTimeout(function() {
-          currentFrame.src = 'about:blank';
-        }, 500);
-
-        activeFrame = nextId;
-      };
-    }
-
-    // התחל בדיקות לאחר טעינה ראשונה
-    getFrame('A').onload = function() {
-      lastVersion = null; // אפס כדי לקלוט גרסה ראשונה
-      checkVersion();
-      setInterval(checkVersion, CHECK_INTERVAL);
-    };
-  </script>
-
+        // Start checking for updates
+        setInterval(checkForUpdates, REFRESH_INTERVAL);
+        
+        // Initial check after page loads
+        setTimeout(checkForUpdates, 5000);
+    </script>
 </body>
 </html>
